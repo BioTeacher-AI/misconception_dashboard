@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
+// Do not switch to direct Apps Script URL in client; use Netlify proxy to avoid CORS.
 const API_URL = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/proxy';
 const TIMESTAMP_COLUMN = '타임스탬프';
 

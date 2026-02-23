@@ -46,6 +46,8 @@ const API_URL = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/prox
 
 일반적으로 `VITE_API_PROXY_PATH`는 설정하지 않아도 되며, 필요할 때만 경로를 오버라이드합니다.
 
+> 참고: 이 프로젝트는 `VITE_GFORM_API_URL`를 사용하지 않습니다. CORS 회피를 위해 프론트엔드는 항상 Netlify Function 프록시를 호출합니다.
+
 ## 빌드
 
 ```bash
