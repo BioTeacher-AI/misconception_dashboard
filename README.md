@@ -15,19 +15,25 @@ netlify dev
 
 ### Netlify Function 환경변수 (`GFORM_JSON_URL`)
 
-프록시 함수가 실제 Google Apps Script JSON URL을 읽기 위해 `GFORM_JSON_URL`이 필요합니다.
+프록시 함수는 기본적으로 아래 Google Apps Script URL을 사용합니다.
+
+```bash
+https://script.google.com/macros/s/AKfycbynbBxwrZxznIqDebsUVI3MYVfIL3uWja9q_swsqeN7JYX0vIoj8vpiMFKyMsjZK6neVg/exec
+```
+
+원하면 `GFORM_JSON_URL`로 다른 엔드포인트를 덮어쓸 수 있습니다.
 
 - Netlify 사이트 대시보드 → **Site configuration** → **Environment variables**
 - 아래 키를 추가
 
 ```bash
-GFORM_JSON_URL=https://your-google-apps-script-webapp-url
+GFORM_JSON_URL=https://script.google.com/macros/s/AKfycbynbBxwrZxznIqDebsUVI3MYVfIL3uWja9q_swsqeN7JYX0vIoj8vpiMFKyMsjZK6neVg/exec
 ```
 
 로컬에서는 `.env` 또는 쉘 환경변수로 설정할 수 있습니다.
 
 ```bash
-GFORM_JSON_URL=https://your-google-apps-script-webapp-url
+GFORM_JSON_URL=https://script.google.com/macros/s/AKfycbynbBxwrZxznIqDebsUVI3MYVfIL3uWja9q_swsqeN7JYX0vIoj8vpiMFKyMsjZK6neVg/exec
 ```
 
 ## 프론트엔드 API 경로 (App.jsx와 동일)
@@ -53,4 +59,4 @@ npm run preview
 
 - Build command: `npm run build`
 - Publish directory: `dist`
-- Function env var: `GFORM_JSON_URL`
+- Function env var(선택): `GFORM_JSON_URL`

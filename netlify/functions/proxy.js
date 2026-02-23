@@ -1,18 +1,7 @@
-export async function handler() {
-  const targetUrl = process.env.GFORM_JSON_URL;
+const DEFAULT_GFORM_JSON_URL = 'https://script.google.com/macros/s/AKfycbynbBxwrZxznIqDebsUVI3MYVfIL3uWja9q_swsqeN7JYX0vIoj8vpiMFKyMsjZK6neVg/exec';
 
-  if (!targetUrl) {
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify({
-        error: 'GFORM_JSON_URL 환경변수가 설정되지 않았습니다.',
-      }),
-    };
-  }
+export async function handler() {
+  const targetUrl = process.env.GFORM_JSON_URL || DEFAULT_GFORM_JSON_URL;
 
   try {
     const response = await fetch(targetUrl, {
