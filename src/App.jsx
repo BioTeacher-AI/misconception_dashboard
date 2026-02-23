@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const API_URL = '/.netlify/functions/proxy';
+const API_URL = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/proxy';
 const TIMESTAMP_COLUMN = '타임스탬프';
 
 function parseScore(value) {

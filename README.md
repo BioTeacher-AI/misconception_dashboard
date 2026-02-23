@@ -30,13 +30,15 @@ GFORM_JSON_URL=https://your-google-apps-script-webapp-url
 GFORM_JSON_URL=https://your-google-apps-script-webapp-url
 ```
 
-## 프론트엔드 API 경로
+## 프론트엔드 API 경로 (App.jsx와 동일)
 
-프론트엔드는 직접 Apps Script를 호출하지 않고 Netlify Function 프록시를 호출합니다.
+프론트엔드는 직접 Apps Script를 호출하지 않고 Netlify Function 프록시를 호출합니다. 기본값은 아래와 같습니다.
 
 ```js
-const API_URL = '/.netlify/functions/proxy';
+const API_URL = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/proxy';
 ```
+
+일반적으로 `VITE_API_PROXY_PATH`는 설정하지 않아도 되며, 필요할 때만 경로를 오버라이드합니다.
 
 ## 빌드
 
