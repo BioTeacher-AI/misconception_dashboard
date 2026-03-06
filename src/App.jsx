@@ -5,6 +5,14 @@ const TIMESTAMP_COLUMN = '타임스탬프';
 const PRE_SOURCE_LABEL = 'PRE API';
 const POST_SOURCE_LABEL = 'POST API';
 
+
+const INCREASE_IS_BETTER_QUESTIONS = [
+  '심장은 우리 몸에 필요한 영양소, 산소를 온몸으로 운반한다.',
+  '소화기관에는 입, 식도, 위, 작은 창자, 큰 창자, 항문 등이 있다.',
+  "몸 밖에서 들어온 산소를 받아들이고 몸속에서 생긴 이산화탄소를 몸 밖으로 내보내는 기관은 '폐'이다.",
+  '노폐물을 몸 밖으로 내보내는 과정을 배설이라고 한다.',
+];
+
 const PRE_FORM = {
   embed: 'https://docs.google.com/forms/d/e/1FAIpQLSeOZ6vmd6q3VrnmjTpkJ4xJTUaIJx_qhkBLdVLvS1CnHpWBOg/viewform?embedded=true',
   open: 'https://docs.google.com/forms/d/e/1FAIpQLSeOZ6vmd6q3VrnmjTpkJ4xJTUaIJx_qhkBLdVLvS1CnHpWBOg/viewform',
@@ -65,10 +73,42 @@ function average(values) {
   return values.reduce((sum, n) => sum + n, 0) / values.length;
 }
 
-function getDeltaTone(delta) {
-  if (delta > 0) return 'tone-up';
-  if (delta < 0) return 'tone-down';
+function normalizeQuestionName(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/["'“”‘’]/g, '')
+    .replace(/[\.。,，]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function isIncreaseBetterQuestion(questionName) {
+  const normalized = normalizeQuestionName(questionName);
+  return INCREASE_IS_BETTER_QUESTIONS.some((question) => {
+    const target = normalizeQuestionName(question);
+    return normalized === target || normalized.includes(target) || target.includes(normalized);
+  });
+}
+
+function classifyChange(questionName, preScore, postScore) {
+  if (preScore === null || postScore === null) return '동일';
+  if (postScore === preScore) return '동일';
+
+  const increaseIsBetter = isIncreaseBetterQuestion(questionName);
+  const improved = increaseIsBetter ? postScore > preScore : postScore < preScore;
+  return improved ? '개선' : '악화';
+}
+
+function getJudgementTone(judgement) {
+  if (judgement === '개선') return 'tone-up';
+  if (judgement === '악화') return 'tone-down';
   return 'tone-neutral';
+}
+
+function getDirectionScore(questionName, preScore, postScore) {
+  if (preScore === null || postScore === null) return null;
+  const delta = postScore - preScore;
+  return isIncreaseBetterQuestion(questionName) ? delta : -delta;
 }
 
 export default function App() {
@@ -213,18 +253,19 @@ export default function App() {
           const post = matchedPost ? parseScore(matchedPost[column]) : null;
           if (pre === null && post === null) return null;
           const delta = pre !== null && post !== null ? post - pre : null;
-          return { column, pre, post, delta };
+          const judgement = classifyChange(column, pre, post);
+          const directionScore = getDirectionScore(column, pre, post);
+          return { column, pre, post, delta, judgement, directionScore };
         })
         .filter(Boolean);
 
       const comparableRows = rowComparisons.filter((row) => row.pre !== null && row.post !== null);
       const preScores = comparableRows.map((row) => row.pre);
       const postScores = comparableRows.map((row) => row.post);
-      const deltas = comparableRows.map((row) => row.post - row.pre);
 
-      const improved = deltas.filter((d) => d > 0).length;
-      const worsened = deltas.filter((d) => d < 0).length;
-      const same = deltas.filter((d) => d === 0).length;
+      const improved = comparableRows.filter((row) => row.judgement === '개선').length;
+      const worsened = comparableRows.filter((row) => row.judgement === '악화').length;
+      const same = comparableRows.filter((row) => row.judgement === '동일').length;
 
       const summary = {
         questionCount: comparableRows.length,
@@ -279,8 +320,12 @@ export default function App() {
 
   const sortedRows = useMemo(() => {
     const base = queryState.result?.rows || [];
-    if (sortMode === 'improved') return [...base].sort((a, b) => (b.delta ?? -999) - (a.delta ?? -999));
-    if (sortMode === 'worsened') return [...base].sort((a, b) => (a.delta ?? 999) - (b.delta ?? 999));
+    if (sortMode === 'improved') {
+      return [...base].sort((a, b) => (b.directionScore ?? -999) - (a.directionScore ?? -999));
+    }
+    if (sortMode === 'worsened') {
+      return [...base].sort((a, b) => (a.directionScore ?? 999) - (b.directionScore ?? 999));
+    }
     return base;
   }, [queryState.result, sortMode]);
 
@@ -394,7 +439,7 @@ export default function App() {
                   <div className="mini-card"><small>분석 문항 수</small><strong>{queryState.result.summary.questionCount}</strong></div>
                   <div className="mini-card"><small>사전 평균</small><strong>{queryState.result.summary.preAvg === null ? '-' : queryState.result.summary.preAvg.toFixed(2)}</strong></div>
                   <div className="mini-card"><small>사후 평균</small><strong>{queryState.result.summary.postAvg === null ? '-' : queryState.result.summary.postAvg.toFixed(2)}</strong></div>
-                  <div className="mini-card"><small>평균 변화량</small><strong className={getDeltaTone(queryState.result.summary.deltaAvg ?? 0)}>{queryState.result.summary.deltaAvg === null ? '-' : queryState.result.summary.deltaAvg.toFixed(2)}</strong></div>
+                  <div className="mini-card"><small>평균 변화량</small><strong className={getJudgementTone((queryState.result.summary.deltaAvg ?? 0) > 0 ? '개선' : (queryState.result.summary.deltaAvg ?? 0) < 0 ? '악화' : '동일')}>{queryState.result.summary.deltaAvg === null ? '-' : queryState.result.summary.deltaAvg.toFixed(2)}</strong></div>
                   <div className="mini-card"><small>개선 문항 수</small><strong>{queryState.result.summary.improved}</strong></div>
                   <div className="mini-card"><small>악화 문항 수</small><strong>{queryState.result.summary.worsened}</strong></div>
                   <div className="mini-card"><small>동일 문항 수</small><strong>{queryState.result.summary.same}</strong></div>
@@ -464,13 +509,14 @@ export default function App() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr><th>문항명</th><th>사전 점수</th><th>사후 점수</th><th>변화량(Δ)</th></tr>
+                      <tr><th>문항명</th><th>사전 점수</th><th>사후 점수</th><th>변화량(Δ)</th><th>판정</th></tr>
                     </thead>
                     <tbody>
                       {sortedRows.map((row) => (
                         <tr key={row.column}>
                           <td>{row.column}</td><td>{row.pre ?? '-'}</td><td>{row.post ?? '-'}</td>
-                          <td className={getDeltaTone(row.delta ?? 0)}>{row.delta === null ? '-' : `${row.delta > 0 ? '+' : ''}${row.delta}`}</td>
+                          <td className={getJudgementTone(row.judgement)}>{row.delta === null ? '-' : `${row.delta > 0 ? '+' : ''}${row.delta}`}</td>
+                          <td className={getJudgementTone(row.judgement)}>{row.judgement}</td>
                         </tr>
                       ))}
                     </tbody>
