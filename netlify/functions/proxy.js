@@ -5,7 +5,7 @@ export async function handler(event) {
   const dataset = event?.queryStringParameters?.dataset;
 
   const targetUrl = new URL(baseUrl);
-  if (dataset === 'pre' || dataset === 'post') {
+  if (dataset) {
     targetUrl.searchParams.set('dataset', dataset);
   }
 

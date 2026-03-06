@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const API_PROXY_BASE = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/proxy';
 const TIMESTAMP_COLUMN = '타임스탬프';
@@ -75,6 +75,11 @@ export default function App() {
   const [studentIdInput, setStudentIdInput] = useState('');
   const [sortMode, setSortMode] = useState('default');
 
+  const [preData, setPreData] = useState([]);
+  const [postData, setPostData] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState('');
+
   const [queryState, setQueryState] = useState({
     loading: false,
     error: '',
@@ -93,6 +98,27 @@ export default function App() {
     return Array.isArray(json?.data) ? json.data : [];
   }
 
+  async function loadBothDatasets() {
+    setDataLoading(true);
+    setDataError('');
+    try {
+      const [preRows, postRows] = await Promise.all([fetchDataset('pre'), fetchDataset('post')]);
+      setPreData(preRows);
+      setPostData(postRows);
+      return { preRows, postRows };
+    } catch (error) {
+      const message = error?.message || '데이터를 불러오는 중 오류가 발생했습니다.';
+      setDataError(message);
+      throw error;
+    } finally {
+      setDataLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadBothDatasets().catch(() => {});
+  }, []);
+
   async function onSearch() {
     const cleanName = nameInput.trim();
     const cleanStudentId = studentIdInput.trim();
@@ -110,7 +136,14 @@ export default function App() {
     setQueryState({ loading: true, error: '', info: '', result: null });
 
     try {
-      const [preRows, postRows] = await Promise.all([fetchDataset('pre'), fetchDataset('post')]);
+      let preRows = preData;
+      let postRows = postData;
+
+      if (!preRows.length && !postRows.length) {
+        const loaded = await loadBothDatasets();
+        preRows = loaded.preRows;
+        postRows = loaded.postRows;
+      }
 
       const preHeaders = preRows[0] ? Object.keys(preRows[0]) : [];
       const postHeaders = postRows[0] ? Object.keys(postRows[0]) : [];
@@ -176,8 +209,6 @@ export default function App() {
         studentId: cleanStudentId,
         preTimestamp: preMatch?.[TIMESTAMP_COLUMN] || null,
         postTimestamp: postMatch?.[TIMESTAMP_COLUMN] || null,
-        hasPre: Boolean(preMatch),
-        hasPost: Boolean(postMatch),
         rows: rowComparisons,
         summary,
       };
@@ -208,12 +239,8 @@ export default function App() {
 
   const sortedRows = useMemo(() => {
     const base = queryState.result?.rows || [];
-    if (sortMode === 'improved') {
-      return [...base].sort((a, b) => (b.delta ?? -999) - (a.delta ?? -999));
-    }
-    if (sortMode === 'worsened') {
-      return [...base].sort((a, b) => (a.delta ?? 999) - (b.delta ?? 999));
-    }
+    if (sortMode === 'improved') return [...base].sort((a, b) => (b.delta ?? -999) - (a.delta ?? -999));
+    if (sortMode === 'worsened') return [...base].sort((a, b) => (a.delta ?? 999) - (b.delta ?? 999));
     return base;
   }, [queryState.result, sortMode]);
 
@@ -288,25 +315,16 @@ export default function App() {
                 }
               }}
             >
-              <input
-                type="text"
-                placeholder="이름"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="학번"
-                value={studentIdInput}
-                onChange={(e) => setStudentIdInput(e.target.value)}
-              />
-              <button type="button" onClick={onSearch} disabled={queryState.loading}>
-                {queryState.loading ? '조회 중...' : '조회'}
+              <input type="text" placeholder="이름" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+              <input type="text" placeholder="학번" value={studentIdInput} onChange={(e) => setStudentIdInput(e.target.value)} />
+              <button type="button" onClick={onSearch} disabled={queryState.loading || dataLoading}>
+                {queryState.loading || dataLoading ? '조회 중...' : '조회'}
               </button>
             </div>
 
+            {dataError && <p className="state error">데이터 로딩 오류: {dataError}</p>}
             {queryState.error && <p className="state error">오류: {queryState.error}</p>}
-            {!queryState.error && queryState.info && <p className="state info">{queryState.info}</p>}
+            {!queryState.error && !dataError && queryState.info && <p className="state info">{queryState.info}</p>}
           </article>
 
           {queryState.result && (
@@ -341,9 +359,7 @@ export default function App() {
                     {avgChartData.map((item) => (
                       <div key={item.label} className="chart-row">
                         <span className="chart-label">{item.label}</span>
-                        <div className="chart-track">
-                          <div className={`chart-bar ${item.tone}`} style={{ width: `${(item.value / 5) * 100}%` }} />
-                        </div>
+                        <div className="chart-track"><div className={`chart-bar ${item.tone}`} style={{ width: `${(item.value / 5) * 100}%` }} /></div>
                         <span className="chart-value">{item.value.toFixed(2)}</span>
                       </div>
                     ))}
@@ -359,9 +375,7 @@ export default function App() {
                       return (
                         <div key={item.label} className="chart-row">
                           <span className="chart-label">{item.label}</span>
-                          <div className="chart-track">
-                            <div className={`chart-bar ${item.tone}`} style={{ width: `${width}%` }} />
-                          </div>
+                          <div className="chart-track"><div className={`chart-bar ${item.tone}`} style={{ width: `${width}%` }} /></div>
                           <span className="chart-value">{item.value}</span>
                         </div>
                       );
@@ -380,16 +394,8 @@ export default function App() {
                       <div key={row.column} className="question-compare-row">
                         <div className="question-name">{row.column}</div>
                         <div className="pair-bars">
-                          <div className="pair one">
-                            <span>Pre</span>
-                            <div className="chart-track"><div className="chart-bar bar-pre" style={{ width: `${preWidth}%` }} /></div>
-                            <strong>{row.pre ?? '-'}</strong>
-                          </div>
-                          <div className="pair two">
-                            <span>Post</span>
-                            <div className="chart-track"><div className="chart-bar bar-post" style={{ width: `${postWidth}%` }} /></div>
-                            <strong>{row.post ?? '-'}</strong>
-                          </div>
+                          <div className="pair"><span>Pre</span><div className="chart-track"><div className="chart-bar bar-pre" style={{ width: `${preWidth}%` }} /></div><strong>{row.pre ?? '-'}</strong></div>
+                          <div className="pair"><span>Post</span><div className="chart-track"><div className="chart-bar bar-post" style={{ width: `${postWidth}%` }} /></div><strong>{row.post ?? '-'}</strong></div>
                         </div>
                       </div>
                     );
@@ -409,22 +415,13 @@ export default function App() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr>
-                        <th>문항명</th>
-                        <th>사전 점수</th>
-                        <th>사후 점수</th>
-                        <th>변화량(Δ)</th>
-                      </tr>
+                      <tr><th>문항명</th><th>사전 점수</th><th>사후 점수</th><th>변화량(Δ)</th></tr>
                     </thead>
                     <tbody>
                       {sortedRows.map((row) => (
                         <tr key={row.column}>
-                          <td>{row.column}</td>
-                          <td>{row.pre ?? '-'}</td>
-                          <td>{row.post ?? '-'}</td>
-                          <td className={getDeltaTone(row.delta ?? 0)}>
-                            {row.delta === null ? '-' : `${row.delta > 0 ? '+' : ''}${row.delta}`}
-                          </td>
+                          <td>{row.column}</td><td>{row.pre ?? '-'}</td><td>{row.post ?? '-'}</td>
+                          <td className={getDeltaTone(row.delta ?? 0)}>{row.delta === null ? '-' : `${row.delta > 0 ? '+' : ''}${row.delta}`}</td>
                         </tr>
                       ))}
                     </tbody>
