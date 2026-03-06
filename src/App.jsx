@@ -75,8 +75,10 @@ export default function App() {
   const [studentIdInput, setStudentIdInput] = useState('');
   const [sortMode, setSortMode] = useState('default');
 
-  const [preData, setPreData] = useState([]);
-  const [postData, setPostData] = useState([]);
+  // pre/post payload를 완전히 분리 저장
+  const [prePayload, setPrePayload] = useState({ dataset: '', sheetName: '', count: 0, data: [] });
+  const [postPayload, setPostPayload] = useState({ dataset: '', sheetName: '', count: 0, data: [] });
+
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState('');
 
@@ -89,23 +91,47 @@ export default function App() {
 
   const resultRef = useRef(null);
 
-  async function fetchDataset(dataset) {
-    const response = await fetch(`${API_PROXY_BASE}?dataset=${dataset}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`${dataset} 데이터 요청 실패: ${response.status}`);
-    }
+  async function fetchPrePayload() {
+    const response = await fetch(`${API_PROXY_BASE}?dataset=pre`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`pre 데이터 요청 실패: ${response.status}`);
     const json = await response.json();
-    return Array.isArray(json?.data) ? json.data : [];
+    console.log('[debug] pre payload', json);
+    return {
+      dataset: json?.dataset ?? '',
+      sheetName: json?.sheetName ?? '',
+      count: Number(json?.count ?? 0),
+      data: Array.isArray(json?.data) ? json.data : [],
+    };
+  }
+
+  async function fetchPostPayload() {
+    const response = await fetch(`${API_PROXY_BASE}?dataset=post`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`post 데이터 요청 실패: ${response.status}`);
+    const json = await response.json();
+    console.log('[debug] post payload', json);
+    return {
+      dataset: json?.dataset ?? '',
+      sheetName: json?.sheetName ?? '',
+      count: Number(json?.count ?? 0),
+      data: Array.isArray(json?.data) ? json.data : [],
+    };
   }
 
   async function loadBothDatasets() {
     setDataLoading(true);
     setDataError('');
+
     try {
-      const [preRows, postRows] = await Promise.all([fetchDataset('pre'), fetchDataset('post')]);
-      setPreData(preRows);
-      setPostData(postRows);
-      return { preRows, postRows };
+      // fetch 분리 + 상태 분리
+      const [nextPrePayload, nextPostPayload] = await Promise.all([
+        fetchPrePayload(),
+        fetchPostPayload(),
+      ]);
+
+      setPrePayload(nextPrePayload);
+      setPostPayload(nextPostPayload);
+
+      return { nextPrePayload, nextPostPayload };
     } catch (error) {
       const message = error?.message || '데이터를 불러오는 중 오류가 발생했습니다.';
       setDataError(message);
@@ -136,14 +162,17 @@ export default function App() {
     setQueryState({ loading: true, error: '', info: '', result: null });
 
     try {
-      let preRows = preData;
-      let postRows = postData;
+      let localPrePayload = prePayload;
+      let localPostPayload = postPayload;
 
-      if (!preRows.length && !postRows.length) {
+      if (!localPrePayload.data.length && !localPostPayload.data.length) {
         const loaded = await loadBothDatasets();
-        preRows = loaded.preRows;
-        postRows = loaded.postRows;
+        localPrePayload = loaded.nextPrePayload;
+        localPostPayload = loaded.nextPostPayload;
       }
+
+      const preRows = [...localPrePayload.data];
+      const postRows = [...localPostPayload.data];
 
       const preHeaders = preRows[0] ? Object.keys(preRows[0]) : [];
       const postHeaders = postRows[0] ? Object.keys(postRows[0]) : [];
@@ -153,10 +182,11 @@ export default function App() {
       const postNameCol = findColumn(postHeaders, '이름');
       const postStudentCol = findColumn(postHeaders, '학번');
 
-      const preMatch = pickLatestMatch(preRows, preNameCol, preStudentCol, cleanName, cleanStudentId);
-      const postMatch = pickLatestMatch(postRows, postNameCol, postStudentCol, cleanName, cleanStudentId);
+      // 검색 로직 분리: preData / postData 각각에서 찾기
+      const matchedPre = pickLatestMatch(preRows, preNameCol, preStudentCol, cleanName, cleanStudentId);
+      const matchedPost = pickLatestMatch(postRows, postNameCol, postStudentCol, cleanName, cleanStudentId);
 
-      if (!preMatch && !postMatch) {
+      if (!matchedPre && !matchedPost) {
         setQueryState({
           loading: false,
           error: '',
@@ -177,8 +207,8 @@ export default function App() {
 
       const rowComparisons = commonColumns
         .map((column) => {
-          const pre = preMatch ? parseScore(preMatch[column]) : null;
-          const post = postMatch ? parseScore(postMatch[column]) : null;
+          const pre = matchedPre ? parseScore(matchedPre[column]) : null;
+          const post = matchedPost ? parseScore(matchedPost[column]) : null;
           if (pre === null && post === null) return null;
           const delta = pre !== null && post !== null ? post - pre : null;
           return { column, pre, post, delta };
@@ -207,15 +237,21 @@ export default function App() {
       const result = {
         studentName: cleanName,
         studentId: cleanStudentId,
-        preTimestamp: preMatch?.[TIMESTAMP_COLUMN] || null,
-        postTimestamp: postMatch?.[TIMESTAMP_COLUMN] || null,
-        rows: rowComparisons,
+        preTimestamp: matchedPre?.[TIMESTAMP_COLUMN] || null,
+        postTimestamp: matchedPost?.[TIMESTAMP_COLUMN] || null,
+        rows: [...rowComparisons],
         summary,
+        debug: {
+          preDataset: localPrePayload.dataset,
+          preSheetName: localPrePayload.sheetName,
+          postDataset: localPostPayload.dataset,
+          postSheetName: localPostPayload.sheetName,
+        },
       };
 
       let info = '';
-      if (!preMatch && postMatch) info = '사전 응답이 없습니다.';
-      if (preMatch && !postMatch) info = '사후 응답이 없습니다.';
+      if (!matchedPre && matchedPost) info = '사전 응답이 없습니다.';
+      if (matchedPre && !matchedPost) info = '사후 응답이 없습니다.';
 
       setQueryState({
         loading: false,
@@ -336,6 +372,13 @@ export default function App() {
                   <div><strong>학번</strong><div>{queryState.result.studentId}</div></div>
                   <div><strong>사전 응답 시각</strong><div>{formatDate(parseDate(queryState.result.preTimestamp))}</div></div>
                   <div><strong>사후 응답 시각</strong><div>{formatDate(parseDate(queryState.result.postTimestamp))}</div></div>
+                </div>
+                <hr style={{ border: 0, borderTop: '1px solid #e8edf7', margin: '12px 0' }} />
+                <div className="grid grid-2">
+                  <div><strong>pre dataset</strong><div>{queryState.result.debug.preDataset || '-'}</div></div>
+                  <div><strong>pre sheetName</strong><div>{queryState.result.debug.preSheetName || '-'}</div></div>
+                  <div><strong>post dataset</strong><div>{queryState.result.debug.postDataset || '-'}</div></div>
+                  <div><strong>post sheetName</strong><div>{queryState.result.debug.postSheetName || '-'}</div></div>
                 </div>
               </article>
 
