@@ -19,22 +19,21 @@
     3. 개선/동일/악화 분포
   - 문항별 비교 테이블 + 정렬 옵션(원래 순서/개선 큰 순/악화 큰 순)
 
-## 데이터 소스
-
-- Apps Script Web App 기본 URL:
-  - `https://script.google.com/macros/s/AKfycbyhcx9DhJYA146r1WEigOXn51WK7mzi0ikEjFD4VEpWKoxzqREy9EVPBHJdECXwT0bwTQ/exec`
-- dataset 파라미터
-  - pre: `?dataset=pre`
-  - post: `?dataset=post`
+## 데이터 소스 / 프록시 구조
 
 프론트엔드는 직접 Apps Script를 호출하지 않고, 항상 Netlify Function 프록시를 호출합니다.
 
-## 프록시 엔드포인트
+- pre 요청: `/.netlify/functions/proxy?dataset=pre`
+- post 요청: `/.netlify/functions/proxy?dataset=post`
 
-- `/.netlify/functions/proxy?dataset=pre`
-- `/.netlify/functions/proxy?dataset=post`
+프록시는 `dataset` 값을 읽어 **서로 다른 Apps Script URL**로 라우팅합니다.
 
-프록시 함수는 `dataset` 쿼리를 Apps Script로 전달합니다.
+- PRE API URL
+  - `https://script.google.com/macros/s/AKfycbwcIXi2O4vJARKHyRJNh5HA2BQsJ5nC4PqHviMI-1GRXTkjZBEELCN1uoCUrEL0qFqCKQ/exec`
+- POST API URL
+  - `https://script.google.com/macros/s/AKfycbyP4-EIA334DbLzscfG-8i95-IOgn5cFk5Glik8LkqRzP3aW9L2qy1V7RqXmAnYwF8U/exec`
+
+> 주의: 기존 `dataset=pre/post`를 Apps Script URL에 붙이는 방식은 더 이상 사용하지 않습니다.
 
 ## 로컬 실행
 
@@ -45,16 +44,18 @@ netlify dev
 
 > 프록시 함수를 함께 쓰므로 로컬 실행은 `netlify dev`를 권장합니다.
 
-## 환경변수
+## Netlify 환경변수
 
-기본적으로 코드 내 기본 Apps Script URL을 사용하며, 필요 시 아래 변수로 덮어쓸 수 있습니다.
+아래 2개를 설정하면 기본 URL을 덮어쓸 수 있습니다.
 
-- `GFORM_JSON_URL` (선택)
+- `GFORM_JSON_URL_PRE`
+- `GFORM_JSON_URL_POST`
 
 예시:
 
 ```bash
-GFORM_JSON_URL=https://script.google.com/macros/s/AKfycbyhcx9DhJYA146r1WEigOXn51WK7mzi0ikEjFD4VEpWKoxzqREy9EVPBHJdECXwT0bwTQ/exec
+GFORM_JSON_URL_PRE=https://script.google.com/macros/s/AKfycbwcIXi2O4vJARKHyRJNh5HA2BQsJ5nC4PqHviMI-1GRXTkjZBEELCN1uoCUrEL0qFqCKQ/exec
+GFORM_JSON_URL_POST=https://script.google.com/macros/s/AKfycbyP4-EIA334DbLzscfG-8i95-IOgn5cFk5Glik8LkqRzP3aW9L2qy1V7RqXmAnYwF8U/exec
 ```
 
 ## 빌드
@@ -70,4 +71,4 @@ npm run preview
 
 - Build command: `npm run build`
 - Publish directory: `dist`
-- Function env var(optional): `GFORM_JSON_URL`
+- Function env var(optional): `GFORM_JSON_URL_PRE`, `GFORM_JSON_URL_POST`

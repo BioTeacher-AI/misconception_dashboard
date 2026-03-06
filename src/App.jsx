@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 const API_PROXY_BASE = import.meta.env.VITE_API_PROXY_PATH || '/.netlify/functions/proxy';
 const TIMESTAMP_COLUMN = '타임스탬프';
+const PRE_SOURCE_LABEL = 'PRE API';
+const POST_SOURCE_LABEL = 'POST API';
 
 const PRE_FORM = {
   embed: 'https://docs.google.com/forms/d/e/1FAIpQLSeOZ6vmd6q3VrnmjTpkJ4xJTUaIJx_qhkBLdVLvS1CnHpWBOg/viewform?embedded=true',
@@ -246,6 +248,8 @@ export default function App() {
           preSheetName: localPrePayload.sheetName,
           postDataset: localPostPayload.dataset,
           postSheetName: localPostPayload.sheetName,
+          preSource: PRE_SOURCE_LABEL,
+          postSource: POST_SOURCE_LABEL,
         },
       };
 
@@ -375,8 +379,10 @@ export default function App() {
                 </div>
                 <hr style={{ border: 0, borderTop: '1px solid #e8edf7', margin: '12px 0' }} />
                 <div className="grid grid-2">
+                  <div><strong>pre source</strong><div>{queryState.result.debug.preSource}</div></div>
                   <div><strong>pre dataset</strong><div>{queryState.result.debug.preDataset || '-'}</div></div>
                   <div><strong>pre sheetName</strong><div>{queryState.result.debug.preSheetName || '-'}</div></div>
+                  <div><strong>post source</strong><div>{queryState.result.debug.postSource}</div></div>
                   <div><strong>post dataset</strong><div>{queryState.result.debug.postDataset || '-'}</div></div>
                   <div><strong>post sheetName</strong><div>{queryState.result.debug.postSheetName || '-'}</div></div>
                 </div>

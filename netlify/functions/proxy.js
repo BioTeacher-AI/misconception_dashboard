@@ -1,16 +1,14 @@
-const DEFAULT_GFORM_JSON_URL = 'https://script.google.com/macros/s/AKfycbyhcx9DhJYA146r1WEigOXn51WK7mzi0ikEjFD4VEpWKoxzqREy9EVPBHJdECXwT0bwTQ/exec';
+const DEFAULT_GFORM_JSON_URL_PRE = 'https://script.google.com/macros/s/AKfycbwcIXi2O4vJARKHyRJNh5HA2BQsJ5nC4PqHviMI-1GRXTkjZBEELCN1uoCUrEL0qFqCKQ/exec';
+const DEFAULT_GFORM_JSON_URL_POST = 'https://script.google.com/macros/s/AKfycbyP4-EIA334DbLzscfG-8i95-IOgn5cFk5Glik8LkqRzP3aW9L2qy1V7RqXmAnYwF8U/exec';
 
 export async function handler(event) {
-  const baseUrl = process.env.GFORM_JSON_URL || DEFAULT_GFORM_JSON_URL;
   const dataset = event?.queryStringParameters?.dataset;
-
-  const targetUrl = new URL(baseUrl);
-  if (dataset) {
-    targetUrl.searchParams.set('dataset', dataset);
-  }
+  const targetUrl = dataset === 'post'
+    ? (process.env.GFORM_JSON_URL_POST || DEFAULT_GFORM_JSON_URL_POST)
+    : (process.env.GFORM_JSON_URL_PRE || DEFAULT_GFORM_JSON_URL_PRE);
 
   try {
-    const response = await fetch(targetUrl.toString(), {
+    const response = await fetch(targetUrl, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
